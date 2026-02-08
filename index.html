@@ -55,6 +55,9 @@
         .fade-in { opacity: 0; transform: translateY(30px); transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
         .fade-in.visible { opacity: 1; transform: translateY(0); }
         
+        /* Fix Text Breaks */
+        h1, h2, h3, p, .text-fix { white-space: normal !important; }
+
         /* Admin Panel Styles */
         #admin-panel { display: none; }
         .admin-sidebar-link.active { background-color: #d4af37; color: #1a1f36; font-weight: bold; }
@@ -129,8 +132,8 @@
             <div class="absolute inset-0" id="hero-slideshow"></div>
             <div class="absolute inset-0 bg-navy bg-opacity-70"></div>
             <div class="container mx-auto px-4 text-center relative z-10 fade-in">
-                <h1 id="view-hero-title" class="text-4xl md:text-6xl font-bold text-white mb-4 font-tajawal"></h1>
-                <div id="view-hero-subtitle" class="text-xl md:text-2xl text-gold font-semibold mb-8 whitespace-pre-line"></div>
+                <h1 id="view-hero-title" class="text-4xl md:text-6xl font-bold text-white mb-4 font-tajawal leading-tight"></h1>
+                <div id="view-hero-subtitle" class="text-xl md:text-2xl text-gold font-semibold mb-8 text-fix"></div>
                 <div class="flex justify-center gap-4">
                     <a href="#portfolio" class="gold-gradient text-navy px-8 py-3 rounded-full font-bold hover-scale">استكشف أعمالي</a>
                     <a href="#contact" class="border-2 border-gold text-gold px-8 py-3 rounded-full font-bold hover:bg-gold hover:text-navy transition-all">تواصل معي</a>
@@ -146,11 +149,11 @@
                 </div>
                 <div class="grid lg:grid-cols-2 gap-12 items-center">
                     <div class="text-center">
-                        <img id="view-about-image" src="" class="w-64 h-64 mx-auto rounded-full shadow-2xl object-cover border-4 border-gold">
+                        <img id="view-about-image" src="" class="w-64 h-64 mx-auto rounded-full shadow-2xl object-cover border-4 border-gold" onerror="this.src='https://placehold.co/400x400/1a1f36/d4af37?text=Malek'">
                     </div>
                     <div>
                         <h3 id="view-about-title" class="text-2xl font-bold text-navy mb-4"></h3>
-                        <p id="view-about-desc" class="text-gray-700 mb-8 leading-relaxed whitespace-pre-line text-lg"></p>
+                        <p id="view-about-desc" class="text-gray-700 mb-8 leading-relaxed text-lg text-fix"></p>
                         <div id="view-skills-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                     </div>
                 </div>
@@ -362,6 +365,7 @@
         let siteData = {};
 
         // --- CLEAN DATA (Corrected) ---
+        // Clean strings manually to ensure no newlines
         const defaultData = {
             hero: {
                 title: "مرحبا بك",
@@ -376,7 +380,6 @@
             about: {
                 title: "مطور ومنسق مشاريع رقمية",
                 description: "أنا مالك، مطور ومنسق مشاريع رقمية أبتكر حلولاً رقمية مبتكرة.",
-                // Fixed Image URL (removed spaces)
                 image: "https://i.ibb.co/dJ4SVw9W/Blue-Simple-Business-Professional-Linked-In-Profile-Picture-20250902-003847.jpg",
                 skills: [
                     { name: "التصميم الجرافيكي", percent: 90 },
@@ -444,9 +447,19 @@
                 const response = await fetch(`${DB_URL}.json`);
                 let data = await response.json();
 
+                // Check if data is empty OR contains bad newlines in title/subtitle
+                let needsCleaning = false;
                 if (!data) {
-                    console.log("Database empty. Seeding default data...");
+                    needsCleaning = true;
+                } else if (data.hero && (data.hero.title.includes('\n') || data.hero.subtitle.includes('\n'))) {
+                    console.log("Detected broken text. forcing clean...");
+                    needsCleaning = true;
+                }
+
+                if (needsCleaning) {
+                    console.log("Seeding CLEAN default data...");
                     data = defaultData;
+                    // Force update DB with clean data
                     await fetch(`${DB_URL}.json`, {
                         method: 'PUT',
                         body: JSON.stringify(defaultData)
@@ -457,7 +470,6 @@
                 renderWebsite(siteData);
             } catch (error) {
                 console.error("Error fetching data:", error);
-                // Fallback to default data if fetch fails (offline mode)
                 siteData = defaultData;
                 renderWebsite(siteData);
             }
@@ -467,14 +479,14 @@
             // Collect data from Admin Forms
             const newData = {
                 hero: {
-                    title: document.getElementById('edit-hero-title').value,
-                    subtitle: document.getElementById('edit-hero-subtitle').value,
+                    title: document.getElementById('edit-hero-title').value.replace(/\n/g, ' ').trim(), // Clean newlines on save
+                    subtitle: document.getElementById('edit-hero-subtitle').value.replace(/\n/g, ' ').trim(),
                     images: document.getElementById('edit-hero-images').value.split('\n').filter(url => url.trim() !== '')
                 },
                 about: {
-                    title: document.getElementById('edit-about-title').value,
-                    description: document.getElementById('edit-about-desc').value,
-                    image: document.getElementById('edit-about-image').value,
+                    title: document.getElementById('edit-about-title').value.replace(/\n/g, ' ').trim(),
+                    description: document.getElementById('edit-about-desc').value.replace(/\n/g, ' ').trim(),
+                    image: document.getElementById('edit-about-image').value.trim(),
                     skills: getSkillsFromAdmin()
                 },
                 services: getServicesFromAdmin(),
@@ -494,7 +506,7 @@
                     body: JSON.stringify(newData)
                 });
                 siteData = newData;
-                renderWebsite(siteData); // Update view immediately
+                renderWebsite(siteData); 
                 showToast("تم حفظ التغييرات بنجاح!");
             } catch (error) {
                 console.error("Save error:", error);
@@ -523,10 +535,16 @@
         function renderWebsite(data) {
             if(!data) return;
 
+            // CLEAN ON RENDER (Safety net)
+            // Even if DB has newlines, we replace them with spaces for display
+            const safeHeroTitle = data.hero?.title ? data.hero.title.replace(/\n/g, ' ') : "";
+            const safeHeroSub = data.hero?.subtitle ? data.hero.subtitle.replace(/\n/g, ' ') : "";
+            const safeAboutDesc = data.about?.description ? data.about.description.replace(/\n/g, ' ') : "";
+
             // Hero
             if (data.hero) {
-                document.getElementById('view-hero-title').textContent = data.hero.title;
-                document.getElementById('view-hero-subtitle').textContent = data.hero.subtitle;
+                document.getElementById('view-hero-title').textContent = safeHeroTitle;
+                document.getElementById('view-hero-subtitle').textContent = safeHeroSub;
                 // Slideshow logic
                 const heroContainer = document.getElementById('hero-slideshow');
                 heroContainer.innerHTML = '';
@@ -544,7 +562,7 @@
             // About
             if (data.about) {
                 document.getElementById('view-about-title').textContent = data.about.title;
-                document.getElementById('view-about-desc').textContent = data.about.description;
+                document.getElementById('view-about-desc').textContent = safeAboutDesc;
                 document.getElementById('view-about-image').src = data.about.image;
                 
                 const skillsContainer = document.getElementById('view-skills-container');
@@ -682,13 +700,14 @@
 
         function populateAdminForms(data) {
             // Hero
-            document.getElementById('edit-hero-title').value = data.hero?.title || "";
-            document.getElementById('edit-hero-subtitle').value = data.hero?.subtitle || "";
+            // Clean newlines in input forms
+            document.getElementById('edit-hero-title').value = data.hero?.title ? data.hero.title.replace(/\n/g, ' ') : "";
+            document.getElementById('edit-hero-subtitle').value = data.hero?.subtitle ? data.hero.subtitle.replace(/\n/g, ' ') : "";
             document.getElementById('edit-hero-images').value = data.hero?.images ? data.hero.images.join('\n') : "";
 
             // About
-            document.getElementById('edit-about-title').value = data.about?.title || "";
-            document.getElementById('edit-about-desc').value = data.about?.description || "";
+            document.getElementById('edit-about-title').value = data.about?.title ? data.about.title.replace(/\n/g, ' ') : "";
+            document.getElementById('edit-about-desc').value = data.about?.description ? data.about.description.replace(/\n/g, ' ') : "";
             document.getElementById('edit-about-image').value = data.about?.image || "";
             
             // Skills
